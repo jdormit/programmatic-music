@@ -9,3 +9,4 @@ pom.xml.asc
 /.nrepl-port
 .hgignore
 .hg/
+hs_err_pid*.log
