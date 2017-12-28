@@ -1,6 +1,8 @@
 (ns programmatic-music.sequencer
   (:require [overtone.live :refer [at apply-by]]))
 
+(defrecord Sequencer [step-index step-count step-values step-mapping steps-enabled])
+
 (defn make-sequencer*
   "Makes a step sequencer.
 
@@ -16,35 +18,64 @@
 
   `:steps-enabled` is a set of step indexes which should be enabled."
   [step-count step-values step-mapping steps-enabled]
-  (let [step-index (atom 0)
-        step-values (atom step-values)
-        step-mapping (atom step-mapping)
-        steps-enabled (atom steps-enabled)]
-    {:step (fn []
-             (let [current-step @step-index
-                   step-func-key (get @step-mapping current-step nil)]
-               (when (contains? @steps-enabled current-step)
-                 (if (nil? step-func-key)
-                   (println "No value mapped for step" current-step)
-                   ((@step-values step-func-key))))
-               (reset! step-index
-                       (mod (inc @step-index) step-count))))
-     :stop (fn []
-             (reset! steps-enabled []))
-     :enable-step (fn [step]
-                    (swap! steps-enabled conj step))
-     :disable-step (fn [step]
-                     (swap! steps-enabled disj step))
-     :set-value (fn [step func-key]
-                  (if (nil? (get @step-values func-key nil))
-                    (println "Key not in step values:" func-key)
-                    (swap! step-mapping assoc step func-key)))
-     :print (fn []
-              (str "TODO: Implement me!"))}))
+  (->Sequencer (atom 0) step-count (atom step-values) (atom step-mapping) (atom steps-enabled)))
+
+(defn step
+  "Executes the next step in a sequencer"
+  [sequencer]
+  (let [{:keys [step-index step-count step-values step-mapping steps-enabled]} sequencer
+        step-func-key (get @step-mapping @step-index nil)]
+    (when (and (contains? @steps-enabled @step-index)
+               step-func-key)
+      ((@step-values step-func-key)))
+    (reset! step-index
+            (mod (inc @step-index) step-count))))
+
+(defn loop-sequencer
+  ;; TODO how would you stop the loop without disabling the sequencer?
+  "Loops through the sequencer according to a metronome beat"
+  [nome sequencer]
+  (let [beat (nome)]
+    (at (nome beat) (step sequencer))
+    (apply-by (nome (inc beat)) loop-sequencer [nome sequencer])))
+
+(defn disable
+  "Disables all steps in a sequencer"
+  [sequencer]
+  (let [{:keys [steps-enabled]} sequencer]
+    (reset! steps-enabled #{})))
+
+(defn enable
+  "Enables all steps in a sequencer"
+  [sequencer]
+  (let [{:keys [steps-enabled step-count]} sequencer]
+    (reset! steps-enabled (set (range 0 step-count)))))
+
+(defn enable-step
+  "Enables a step in a sequencer"
+  [sequencer step]
+  (let [{:keys [steps-enabled]} sequencer]
+    (swap! steps-enabled conj step)))
+
+(defn disable-step
+  "Disables a step in a sequencer"
+  [sequencer step]
+  (let [{:keys [steps-enabled]} sequencer]
+    (swap! steps-enabled disj step)))
+
+(defn set-step
+  "Sets the value of a step in a sequencer"
+  [sequencer step func-key]
+  (let [{:keys [step-values step-mapping]} sequencer]
+    (if (nil? func-key)
+      (swap! step-mapping assoc step func-key)
+      (if (nil? (get @step-values func-key nil))
+        (println "Key not in step values:" func-key)
+        (swap! step-mapping assoc step func-key)))))
+
+(defn sequencer->str
+  "Returns a textual representation of a sequencer"
+  [sequencer]
+  "TODO: Implement me!")
 
 #_(defmacro make-sequencer)
-
-(defn play-sequencer [nome sequencer]
-  (let [beat (nome)]
-    (at (nome beat) ((:step sequencer)))
-    (apply-by (nome (inc beat)) play-sequencer [nome sequencer])))
