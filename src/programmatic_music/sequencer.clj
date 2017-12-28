@@ -1,33 +1,26 @@
 (ns programmatic-music.sequencer
   (:require [overtone.live :refer [at apply-by]]))
 
-(defrecord Sequencer [step-index step-count step-values step-mapping steps-enabled])
+(defrecord Sequencer [step-index step-count step-mapping steps-enabled])
 
 (defn make-sequencer*
   "Makes a step sequencer.
 
   `step-count` is the number of steps in the sequence (the sequence x-axis).
 
-  `step-values` is a vector or a map describing the
-  values available for any step (the sequence y-axis)
-
-  `:step-mapping` is a map describing which value to use for which step.
-  The keys should be numbers representing the step number (0-indexed),
-  and the values are indices into the intial-step-values parameter (numbers if it is
-  a vector, or keys if it is a map).
+  `:step-mapping` maps step indices to functions to be called for that step.
 
   `:steps-enabled` is a set of step indexes which should be enabled."
-  [step-count step-values step-mapping steps-enabled]
-  (->Sequencer (atom 0) step-count (atom step-values) (atom step-mapping) (atom steps-enabled)))
+  [step-count step-mapping steps-enabled]
+  (->Sequencer (atom 0) step-count (atom step-mapping) (atom steps-enabled)))
 
 (defn step
   "Executes the next step in a sequencer"
   [sequencer]
-  (let [{:keys [step-index step-count step-values step-mapping steps-enabled]} sequencer
-        step-func-key (get @step-mapping @step-index nil)]
-    (when (and (contains? @steps-enabled @step-index)
-               step-func-key)
-      ((@step-values step-func-key)))
+  (let [{:keys [step-index step-count step-mapping steps-enabled]} sequencer]
+    (when (contains? @steps-enabled @step-index)
+      (when-let [func (@step-mapping @step-index)]
+        (func)))
     (reset! step-index
             (mod (inc @step-index) step-count))))
 
@@ -65,13 +58,9 @@
 
 (defn set-step
   "Sets the value of a step in a sequencer"
-  [sequencer step func-key]
-  (let [{:keys [step-values step-mapping]} sequencer]
-    (if (nil? func-key)
-      (swap! step-mapping assoc step func-key)
-      (if (nil? (get @step-values func-key nil))
-        (println "Key not in step values:" func-key)
-        (swap! step-mapping assoc step func-key)))))
+  [sequencer step func]
+  (let [{:keys [step-mapping]} sequencer]
+    (swap! step-mapping assoc step func)))
 
 (defn sequencer->str
   "Returns a textual representation of a sequencer"
