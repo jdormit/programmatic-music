@@ -27,6 +27,8 @@
 
 (defn loop-sequencer
   ;; TODO how would you stop the loop without disabling the sequencer?
+  ;; You could make this a macro that defines a var in the current environment
+  ;; that can be manipulated
   "Loops through the sequencer according to a metronome beat"
   [nome sequencer]
   (let [beat (nome)]
