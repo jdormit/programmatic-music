@@ -9,7 +9,7 @@
 
   `step-count` is the number of steps in the sequence (the sequence x-axis).
 
-  `:step-mapping` maps step indices to functions to be called for that step.
+  `:step-mapping` maps step indices to vectors of functions to be called for that step.
 
   `:steps-enabled` is a set of step indexes which should be enabled."
   [step-count step-mapping steps-enabled]
@@ -20,8 +20,9 @@
   [sequencer]
   (let [{:keys [step-index step-count step-mapping steps-enabled]} sequencer]
     (when (contains? @steps-enabled @step-index)
-      (when-let [func (@step-mapping @step-index)]
-        (func)))
+      (when-let [funcs (@step-mapping @step-index)]
+        (doseq [func funcs]
+          (func))))
     (reset! step-index
             (mod (inc @step-index) step-count))))
 
@@ -62,7 +63,8 @@
 (defn set-step
   "Sets the value of a step in a sequencer"
   [sequencer step func]
-  (let [{:keys [step-mapping]} sequencer]
+  (let [{:keys [step-mapping]} sequencer
+        func (if (vector? func) func [func])]
     (swap! step-mapping assoc step func)))
 
 (defn sequencer->str
@@ -76,6 +78,7 @@
   It processes the sequencer list representation row-by-row recursively."
   [[current-form & rest-seq-list :as seq-list] row-count step-mapping]
   (match current-form
+         nil `(make-sequencer* ~row-count ~step-mapping (set (range ~row-count)))
          (:or '. '!) (loop [[first & rest] seq-list
                             idx 0
                             steps-enabled #{}]
@@ -111,7 +114,8 @@
                                               (if first-row? (inc row-size) row-size)
                                               first-row?
                                               (inc idx)
-                                              (assoc acc idx func-name))
+                                              (let [funcs (get acc idx [])]
+                                                (assoc acc idx (conj funcs func-name))))
                                     _ [acc remaining-rows row-size])))]
                      (recur remaining-rows row-size row-step-map))))
 
